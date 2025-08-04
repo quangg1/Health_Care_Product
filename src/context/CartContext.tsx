@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 export interface Product {
-  id: number;
+  id: string | number;
   name: string;
   price: number;
   originalPrice?: number;
@@ -16,17 +16,34 @@ export interface Product {
   dosage?: string;
   sideEffects?: string;
   manufacturer?: string;
+  // Additional drug-specific fields
+  soDangKy?: string;
+  dangBaoChe?: string;
+  dongGoi?: string;
+  hanSuDung?: string;
+  quocGia?: string;
+  linkChiTiet?: string;
+  giaThuoc?: Array<{
+    ngayKeKhai: string;
+    donViKeKhai: string;
+    dongGoi: string;
+    giaKeKhai: string;
+    donViTinh: string;
+  }>;
+
+  packaging?: string;
 }
 
 export interface CartItem extends Product {
   quantity: number;
+  priceDisplay?: string;
 }
 
 interface CartContextType {
   cart: CartItem[];
   addToCart: (product: Product) => void;
-  updateQuantity: (id: number, change: number) => void;
-  removeFromCart: (id: number) => void;
+  updateQuantity: (id: string | number, change: number) => void;
+  removeFromCart: (id: string | number) => void;
   getTotalPrice: () => number;
   getTotalItems: () => number;
   clearCart: () => void;
@@ -59,7 +76,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const updateQuantity = (id: number, change: number) => {
+  const updateQuantity = (id: string | number, change: number) => {
     setCart(prev => {
       return prev.map(item => {
         if (item.id === id) {
@@ -71,12 +88,15 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
-  const removeFromCart = (id: number) => {
+  const removeFromCart = (id: string | number) => {
     setCart(prev => prev.filter(item => item.id !== id));
   };
 
   const getTotalPrice = () => {
-    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return cart.reduce((total, item) => {
+      const price = parseFloat(item.priceDisplay?.replace(/[^\d.]/g, '') || item.price.toString());
+      return total + price * item.quantity;
+    }, 0);
   };
 
   const getTotalItems = () => {

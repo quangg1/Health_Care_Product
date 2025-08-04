@@ -1,8 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Package, Heart, Settings, MapPin, CreditCard, Bell, Shield } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 
 const AccountPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('profile');
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [birthdate, setBirthdate] = useState('');
+  const [profilePicture, setProfilePicture] = useState<File | null>(null);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleSaveChanges = async () => {
+    const formData = new FormData();
+    formData.append('userName', user?.userName || '');
+    formData.append('email', user?.email || '');
+    formData.append('phone', user?.phone || '');
+    formData.append('birthdate', birthdate);
+    if (profilePicture) {
+      formData.append('profilePicture', profilePicture);
+    }
+
+    const response = await fetch('/api/user/update-profile', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (response.ok) {
+      alert('Profile updated successfully');
+    } else {
+      alert('Failed to update profile');
+    }
+  };
 
   const tabs = [
     { id: 'profile', name: 'Profile', icon: User },
@@ -22,23 +57,13 @@ const AccountPage: React.FC = () => {
           <div className="space-y-6">
             <h2 className="text-2xl font-bold">Profile Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  First Name
+                  Full Name
                 </label>
                 <input
                   type="text"
-                  defaultValue="Nguyen"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Last Name
-                </label>
-                <input
-                  type="text"
-                  defaultValue="Van A"
+                  defaultValue={user?.userName || ''}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -48,7 +73,7 @@ const AccountPage: React.FC = () => {
                 </label>
                 <input
                   type="email"
-                  defaultValue="nguyen.vana@email.com"
+                  defaultValue={user?.email || ''}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -58,7 +83,7 @@ const AccountPage: React.FC = () => {
                 </label>
                 <input
                   type="tel"
-                  defaultValue="+84 123 456 789"
+                  defaultValue={user?.phone || ''}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -68,12 +93,26 @@ const AccountPage: React.FC = () => {
                 </label>
                 <input
                   type="date"
-                  defaultValue="1990-01-01"
+                  value={birthdate}
+                  onChange={(e) => setBirthdate(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Profile Picture
+                </label>
+                <input
+                  type="file"
+                  onChange={(e) => setProfilePicture(e.target.files?.[0] || null)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
-            <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+            <button
+              onClick={handleSaveChanges}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            >
               Save Changes
             </button>
           </div>
@@ -219,11 +258,15 @@ const AccountPage: React.FC = () => {
           <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
             <div className="flex items-center space-x-3 mb-4">
               <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
-                <User className="h-6 w-6 text-white" />
+                <span className="text-white text-lg font-semibold">
+                  {user?.userName?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                </span>
               </div>
               <div>
-                <h3 className="font-semibold">Nguyen Van A</h3>
-                <p className="text-sm text-gray-600">Customer since 2023</p>
+                <h3 className="font-semibold">
+                  {user?.userName}
+                </h3>
+                <p className="text-sm text-gray-600">{user?.email}</p>
               </div>
             </div>
           </div>

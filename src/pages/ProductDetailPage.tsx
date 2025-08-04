@@ -1,24 +1,73 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Star, Plus, Minus, Heart, Share2, ArrowLeft, Shield, Truck, Clock } from 'lucide-react';
-import { products } from '../data/products';
+import { Star, Plus, Minus, Heart, Share2, ArrowLeft, Shield, Truck, Clock, Package, Calendar, MapPin, FileText, Loader2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { drugService } from '../services/drugService';
+import { Product } from '../context/CartContext';
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams();
   const { addToCart } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(true);
 
-  const product = products.find(p => p.id === Number(id));
+  // Handle image error
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    e.currentTarget.src = 'https://images.pexels.com/photos/3683107/pexels-photo-3683107.jpeg?auto=compress&cs=tinysrgb&w=300';
+    setImageLoading(false);
+  };
 
-  if (!product) {
+  // Handle image load
+  const handleImageLoad = () => {
+    setImageLoading(false);
+  };
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!id) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await drugService.getDrugById(id);
+        const transformedProduct = drugService.transformDrugToProduct(response.data);
+        setProduct(transformedProduct);
+      } catch (err) {
+        console.error('Error fetching product:', err);
+        setError('Không thể tải thông tin sản phẩm. Vui lòng thử lại sau.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduct();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <span className="ml-2 text-gray-600">Đang tải thông tin sản phẩm...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !product) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">
+            {error || 'Không tìm thấy sản phẩm'}
+          </h1>
           <Link to="/products" className="text-blue-600 hover:text-blue-700">
-            ← Back to Products
+            ← Quay lại danh sách sản phẩm
           </Link>
         </div>
       </div>
@@ -32,68 +81,71 @@ const ProductDetailPage: React.FC = () => {
     }).format(price);
   };
 
+  const formatPriceFromGiaThuoc = () => {
+    if (product.giaThuoc && product.giaThuoc.length > 0) {
+      const latestPrice = product.giaThuoc[product.giaThuoc.length - 1];
+      if (latestPrice && latestPrice.giaKeKhai) {
+        return product.packaging ? `${latestPrice.giaKeKhai} VND (${product.packaging})` : `${latestPrice.giaKeKhai} VND`;
+      }
+    }
+    return formatPrice(product.price);
+  };
+
   const handleAddToCart = () => {
     for (let i = 0; i < quantity; i++) {
       addToCart(product);
     }
   };
 
-  const relatedProducts = products
-    .filter(p => p.category === product.category && p.id !== product.id)
-    .slice(0, 4);
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Breadcrumb */}
       <nav className="flex items-center space-x-2 text-sm text-gray-600 mb-8">
-        <Link to="/" className="hover:text-blue-600">Home</Link>
+        <Link to="/" className="hover:text-blue-600">Trang chủ</Link>
         <span>/</span>
-        <Link to="/products" className="hover:text-blue-600">Products</Link>
-        <span>/</span>
-        <Link to={`/products/${product.category.toLowerCase().replace(' ', '-')}`} className="hover:text-blue-600">
-          {product.category}
-        </Link>
+        <Link to="/products" className="hover:text-blue-600">Sản phẩm</Link>
         <span>/</span>
         <span className="text-gray-900">{product.name}</span>
       </nav>
 
-      {/* Back Button */}
-      <Link
-        to="/products"
-        className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-6"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Products
-      </Link>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         {/* Product Image */}
-        <div>
-          <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden mb-4">
+        <div className="space-y-4">
+          <div className="relative">
+            {imageLoading && (
+              <div className="absolute inset-0 bg-gray-200 animate-pulse flex items-center justify-center">
+                <div className="text-gray-400">Đang tải...</div>
+              </div>
+            )}
             <img
               src={product.image}
               alt={product.name}
-              className="w-full h-full object-cover"
+              className={`w-full h-96 object-cover rounded-lg ${imageLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
+              onError={handleImageError}
+              onLoad={handleImageLoad}
             />
           </div>
         </div>
 
         {/* Product Info */}
-        <div>
-          <div className="mb-4">
-            <span className="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2 py-1 rounded">
-              {product.category}
-            </span>
-            {product.prescription && (
-              <span className="inline-block bg-orange-100 text-orange-800 text-xs font-semibold px-2 py-1 rounded ml-2">
-                Prescription Required
+        <div className="space-y-6">
+          <div>
+            <div className="flex items-center space-x-2 mb-2">
+              <span className="text-sm text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded">
+                {product.category}
               </span>
-            )}
+              {product.prescription && (
+                <span className="text-sm text-orange-600 font-semibold bg-orange-50 px-2 py-1 rounded">
+                  Cần đơn thuốc
+                </span>
+              )}
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.name}</h1>
+            <p className="text-gray-600">{product.description}</p>
           </div>
 
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">{product.name}</h1>
-
-          <div className="flex items-center mb-4">
+          {/* Rating */}
+          <div className="flex items-center space-x-4">
             <div className="flex items-center">
               {[...Array(5)].map((_, i) => (
                 <Star
@@ -106,199 +158,258 @@ const ProductDetailPage: React.FC = () => {
                 />
               ))}
             </div>
-            <span className="ml-2 text-gray-600">
-              {product.rating} ({product.reviews} reviews)
-            </span>
+            <span className="text-gray-600">({product.reviews} đánh giá)</span>
           </div>
 
+          {/* Price */}
           <div className="mb-6">
-            <div className="flex items-center space-x-4">
-              <span className="text-3xl font-bold text-blue-600">
-                {formatPrice(product.price)}
-              </span>
-              {product.originalPrice && (
-                <span className="text-xl text-gray-500 line-through">
-                  {formatPrice(product.originalPrice)}
+            {product.price > 0 ? (
+              <>
+                <span className="text-3xl font-bold text-blue-600">
+                  {formatPriceFromGiaThuoc()}
                 </span>
-              )}
-              {product.originalPrice && (
-                <span className="bg-red-100 text-red-800 text-sm font-semibold px-2 py-1 rounded">
-                  Save {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
-                </span>
-              )}
-            </div>
+                {product.originalPrice && (
+                  <span className="text-xl text-gray-500 line-through ml-2">
+                    {formatPrice(product.originalPrice)}
+                  </span>
+                )}
+              </>
+            ) : (
+              <div className="text-center">
+                <span className="text-2xl font-semibold text-gray-500">Chưa có giá</span>
+                <div className="text-sm text-gray-400 mt-1">Liên hệ để biết giá</div>
+              </div>
+            )}
           </div>
-
-          <p className="text-gray-600 mb-6">{product.description}</p>
 
           {/* Quantity and Add to Cart */}
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="flex items-center border border-gray-300 rounded-lg">
+          <div className="flex space-x-4">
+            {product.price > 0 ? (
+              <>
+                <div className="flex items-center border border-gray-300 rounded-lg">
+                  <button
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    className="p-2 hover:bg-gray-50"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="px-4 py-2">{quantity}</span>
+                  <button
+                    onClick={() => setQuantity(quantity + 1)}
+                    className="p-2 hover:bg-gray-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+                <button
+                  onClick={handleAddToCart}
+                  disabled={!product.inStock}
+                  className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  Thêm vào giỏ hàng
+                </button>
+              </>
+            ) : (
               <button
-                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="p-2 hover:bg-gray-50"
+                disabled
+                className="flex-1 bg-gray-400 text-white py-3 px-6 rounded-lg cursor-not-allowed flex items-center justify-center"
               >
-                <Minus className="h-4 w-4" />
+                <Plus className="h-5 w-5 mr-2" />
+                Chưa có giá
               </button>
-              <span className="px-4 py-2 font-semibold">{quantity}</span>
-              <button
-                onClick={() => setQuantity(quantity + 1)}
-                className="p-2 hover:bg-gray-50"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-            <button
-              onClick={handleAddToCart}
-              disabled={!product.inStock}
-              className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-            >
-              {product.inStock ? 'Add to Cart' : 'Out of Stock'}
+            )}
+            <button className="p-3 border border-gray-300 rounded-lg hover:bg-gray-50">
+              <Heart className="h-5 w-5 text-gray-600" />
             </button>
             <button className="p-3 border border-gray-300 rounded-lg hover:bg-gray-50">
-              <Heart className="h-5 w-5" />
-            </button>
-            <button className="p-3 border border-gray-300 rounded-lg hover:bg-gray-50">
-              <Share2 className="h-5 w-5" />
+              <Share2 className="h-5 w-5 text-gray-600" />
             </button>
           </div>
 
           {/* Features */}
-          <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <Shield className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-              <p className="text-sm font-medium">Licensed</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-6 border-t border-gray-200">
+            <div className="flex items-center">
+              <Shield className="h-6 w-6 text-green-600 mr-2" />
+              <span className="text-sm">Được cấp phép</span>
             </div>
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <Truck className="h-6 w-6 text-green-600 mx-auto mb-2" />
-              <p className="text-sm font-medium">Fast Delivery</p>
+            <div className="flex items-center">
+              <Truck className="h-6 w-6 text-blue-600 mr-2" />
+              <span className="text-sm">Giao hàng nhanh</span>
             </div>
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <Clock className="h-6 w-6 text-orange-600 mx-auto mb-2" />
-              <p className="text-sm font-medium">24/7 Support</p>
+            <div className="flex items-center">
+              <Clock className="h-6 w-6 text-orange-600 mr-2" />
+              <span className="text-sm">Hỗ trợ 24/7</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Product Details Tabs */}
+      {/* Tabs */}
       <div className="mt-12">
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8">
-            {['description', 'ingredients', 'dosage', 'reviews'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
+            <button
+              onClick={() => setActiveTab('description')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'description'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Mô tả
+            </button>
+            <button
+              onClick={() => setActiveTab('ingredients')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'ingredients'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Thành phần
+            </button>
+            <button
+              onClick={() => setActiveTab('usage')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'usage'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Hướng dẫn sử dụng
+            </button>
+            <button
+              onClick={() => setActiveTab('info')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'info'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Thông tin thuốc
+            </button>
+            <button
+              onClick={() => setActiveTab('pricing')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'pricing'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Lịch sử giá
+            </button>
           </nav>
         </div>
 
-        <div className="py-8">
+        <div className="py-6">
           {activeTab === 'description' && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">Product Description</h3>
+              <h3 className="text-lg font-semibold mb-4">Mô tả sản phẩm</h3>
               <p className="text-gray-600">{product.description}</p>
-              {product.manufacturer && (
-                <div className="mt-4">
-                  <p className="text-sm text-gray-600">
-                    <strong>Manufacturer:</strong> {product.manufacturer}
-                  </p>
-                </div>
-              )}
             </div>
           )}
 
           {activeTab === 'ingredients' && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">Ingredients</h3>
-              <p className="text-gray-600">
-                {product.ingredients || 'Ingredient information not available for this product.'}
-              </p>
+              <h3 className="text-lg font-semibold mb-4">Thành phần</h3>
+              <p className="text-gray-600">{product.ingredients || 'Không có thông tin thành phần'}</p>
             </div>
           )}
 
-          {activeTab === 'dosage' && (
+          {activeTab === 'usage' && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">Dosage & Usage</h3>
-              <p className="text-gray-600 mb-4">
-                {product.dosage || 'Please consult with a healthcare professional for proper dosage.'}
-              </p>
-              {product.sideEffects && (
+              <h3 className="text-lg font-semibold mb-4">Hướng dẫn sử dụng</h3>
+              {product.dosage && product.dosage.startsWith('http') ? (
                 <div>
-                  <h4 className="font-medium mb-2">Side Effects</h4>
-                  <p className="text-gray-600">{product.sideEffects}</p>
+                  <p className="text-gray-600 mb-4">Xem hướng dẫn chi tiết:</p>
+                  <iframe
+                    src={product.dosage}
+                    className="w-full h-96 border border-gray-300 rounded-lg"
+                    title="Hướng dẫn sử dụng"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
                 </div>
+              ) : (
+                <p className="text-gray-600">{product.dosage || 'Không có hướng dẫn sử dụng'}</p>
               )}
             </div>
           )}
 
-          {activeTab === 'reviews' && (
+          {activeTab === 'info' && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">Customer Reviews</h3>
-              <div className="space-y-4">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="border-b border-gray-200 pb-4">
-                    <div className="flex items-center mb-2">
-                      <div className="flex items-center">
-                        {[...Array(5)].map((_, j) => (
-                          <Star
-                            key={j}
-                            className={`h-4 w-4 ${
-                              j < 5 ? 'text-yellow-400 fill-current' : 'text-gray-300'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <span className="ml-2 font-medium">Customer {i + 1}</span>
-                    </div>
-                    <p className="text-gray-600">
-                      Great product! Works exactly as described and arrived quickly.
-                    </p>
+              <h3 className="text-lg font-semibold mb-4">Thông tin thuốc</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {product.soDangKy && product.soDangKy.trim() && (
+                  <div>
+                    <span className="font-medium">Số đăng ký:</span>
+                    <span className="ml-2">{product.soDangKy}</span>
                   </div>
-                ))}
+                )}
+                {product.dangBaoChe && product.dangBaoChe.trim() && (
+                  <div>
+                    <span className="font-medium">Dạng bào chế:</span>
+                    <span className="ml-2">{product.dangBaoChe}</span>
+                  </div>
+                )}
+                {product.dongGoi && product.dongGoi.trim() && (
+                  <div>
+                    <span className="font-medium">Đóng gói:</span>
+                    <span className="ml-2">{product.dongGoi}</span>
+                  </div>
+                )}
+                {product.hanSuDung && product.hanSuDung.trim() && (
+                  <div>
+                    <span className="font-medium">Hạn sử dụng:</span>
+                    <span className="ml-2">{product.hanSuDung}</span>
+                  </div>
+                )}
+                {product.quocGia && product.quocGia.trim() && (
+                  <div>
+                    <span className="font-medium">Quốc gia:</span>
+                    <span className="ml-2">{product.quocGia}</span>
+                  </div>
+                )}
+                {product.manufacturer && product.manufacturer.trim() && (
+                  <div>
+                    <span className="font-medium">Nhà sản xuất:</span>
+                    <span className="ml-2">{product.manufacturer}</span>
+                  </div>
+                )}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'pricing' && (
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Lịch sử giá</h3>
+              {product.giaThuoc && product.giaThuoc.length > 0 ? (
+                <div className="space-y-3">
+                  {product.giaThuoc.map((gia, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="font-medium">Giá: {gia.giaKeKhai} {gia.donViTinh || ''}</span>
+                          <div className="text-sm text-gray-600">
+                            Đóng gói: {gia.dongGoi || 'Không có thông tin'}
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {gia.ngayKeKhai || 'Chưa có ngày'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-600">Chưa có thông tin giá</p>
+              )}
             </div>
           )}
         </div>
       </div>
-
-      {/* Related Products */}
-      {relatedProducts.length > 0 && (
-        <div className="mt-12">
-          <h2 className="text-2xl font-bold mb-8">Related Products</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {relatedProducts.map((relatedProduct) => (
-              <Link
-                key={relatedProduct.id}
-                to={`/product/${relatedProduct.id}`}
-                className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
-              >
-                <img
-                  src={relatedProduct.image}
-                  alt={relatedProduct.name}
-                  className="w-full h-48 object-cover"
-                />
-                <div className="p-4">
-                  <h3 className="font-semibold text-gray-800 mb-2 line-clamp-2">
-                    {relatedProduct.name}
-                  </h3>
-                  <p className="text-blue-600 font-bold">
-                    {formatPrice(relatedProduct.price)}
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
