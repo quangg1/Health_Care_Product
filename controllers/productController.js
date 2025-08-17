@@ -51,7 +51,13 @@ exports.getAllProductsController = async (req, res) => {
             .find(query)
             .sort(sortOption)
             .limit(parseInt(limit))
-            .skip(skip);
+            .skip(skip)
+            .lean();
+
+        // Add virtual category field
+        products.forEach(p => {
+            p.category = [p.main_category, p.sub_category].filter(Boolean).join(' > ');
+        });
 
         const total = await Product.countDocuments(query);
 
@@ -101,7 +107,10 @@ exports.getProductByIdController = async (req, res) => {
     try {
         const { id } = req.params;
         
-        const product = await Product.findById(id);
+        const product = await Product.findById(id).lean();
+        if (product) {
+            product.category = [product.main_category, product.sub_category].filter(Boolean).join(' > ');
+        }
         
         if (!product) {
             return res.status(404).json({

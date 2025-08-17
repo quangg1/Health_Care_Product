@@ -23,10 +23,6 @@ const orderItemSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  category: {
-    type: String,
-    required: true
-  },
   prescription: {
     type: Boolean,
     default: false
@@ -103,6 +99,14 @@ const orderSchema = new mongoose.Schema({
   trackingNumber: {
     type: String,
     default: ''
+  },
+  shippingDistanceKm: {
+    type: Number,
+    default: null
+  },
+  shippingCoords: {
+    lat: { type: Number, default: null },
+    lng: { type: Number, default: null }
   },
   estimatedDelivery: {
     type: Date

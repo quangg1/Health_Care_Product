@@ -48,10 +48,9 @@ router.put(
   upload.single('profile'), // Middleware for handling single file upload named 'profile'
   [
     // Validation middleware
-    // Ensures that if a 'profile' field is provided, it is a valid URL
     body('userName').optional().trim().escape(),
     body('dob').optional().isISO8601().toDate().withMessage('DOB must be a valid date'),
-    body('profile').optional().isURL().withMessage('Profile must be a valid URL'),
+    // Note: 'profile' is uploaded as a file via multer; no URL validation here
   ],
   updateUserController // Controller function to handle the request
 );

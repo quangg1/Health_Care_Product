@@ -1,6 +1,31 @@
 const Order = require('../models/orderModel');
-const User = require('../models/userModel');
-const Product = require('../models/productModel');
+
+// Store coordinates (123 Nguyễn Huệ, Quận 1, TP.HCM - approx)
+const STORE_COORDS = { lat: 10.775658, lng: 106.700424 };
+
+function toRad(deg) { return (deg * Math.PI) / 180; }
+
+function haversineDistance(a, b) {
+  const R = 6371; // km
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const sa = Math.sin(dLat / 2);
+  const sb = Math.sin(dLng / 2);
+  const h = sa * sa + Math.cos(lat1) * Math.cos(lat2) * sb * sb;
+  const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  return R * c; // distance in km
+}
+
+function computeShippingCost(distanceKm, subtotal) {
+  // Free shipping threshold
+  if (subtotal >= 500000) return 0;
+  if (distanceKm <= 5) return 15000;
+  if (distanceKm <= 10) return 25000;
+  if (distanceKm <= 20) return 40000;
+  return 60000;
+}
 
 // Create new order
 const createOrder = async (req, res) => {
@@ -25,8 +50,40 @@ const createOrder = async (req, res) => {
 
     // Calculate totals
     const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const shippingCost = subtotal > 500000 ? 0 : 30000;
+
+    // Distance-based shipping cost
+    let shippingCost = 30000;
+    let distanceKm = null;
+    let coords = null;
+    try {
+      const shippingCoords = req.body.shippingCoords;
+      if (shippingCoords && typeof shippingCoords.lat === 'number' && typeof shippingCoords.lng === 'number') {
+        coords = { lat: shippingCoords.lat, lng: shippingCoords.lng };
+        distanceKm = haversineDistance(coords, STORE_COORDS);
+        shippingCost = computeShippingCost(distanceKm, subtotal);
+      } else {
+        // Fallback to old flat fee logic if coords not provided
+        shippingCost = subtotal >= 500000 ? 0 : 30000;
+      }
+    } catch (e) {
+      // Graceful fallback
+      shippingCost = subtotal >= 500000 ? 0 : 30000;
+    }
+
     const totalAmount = subtotal + shippingCost;
+
+    // Estimate delivery time based on distance
+    let estimatedDelivery = new Date();
+    if (distanceKm === null || distanceKm <= 5) {
+      estimatedDelivery.setDate(estimatedDelivery.getDate() + 1);
+    } else if (distanceKm <= 20) {
+      estimatedDelivery.setDate(estimatedDelivery.getDate() + 2);
+    } else {
+      estimatedDelivery.setDate(estimatedDelivery.getDate() + 3);
+    }
+
+    // Determine payment status
+    const paymentStatus = paymentMethod === 'cash' ? 'pending' : 'paid';
 
     // Create order
     const order = new Order({
@@ -34,19 +91,21 @@ const createOrder = async (req, res) => {
       items,
       shippingAddress,
       paymentMethod,
+      paymentStatus,
       notes,
       prescriptionImages: prescriptionImages || [],
       subtotal,
       shippingCost,
-      totalAmount
+      totalAmount,
+      shippingDistanceKm: distanceKm,
+      shippingCoords: coords || { lat: null, lng: null },
+      estimatedDelivery
     });
 
     await order.save();
 
-    // Populate user and product details
-    await order.populate('user', 'userName email phone');
-    await order.populate('items.productId', 'tenThuoc imageUrl');
-
+    // Populate user and product details (skipped to avoid cross-service model dependency)
+    
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
@@ -74,7 +133,6 @@ const getUserOrders = async (req, res) => {
     }
 
     const orders = await Order.find(query)
-      .populate('items.productId', 'tenThuoc imageUrl')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
@@ -106,9 +164,7 @@ const getOrderById = async (req, res) => {
     const { orderId } = req.params;
     const userId = req.user.id;
 
-    const order = await Order.findOne({ _id: orderId, user: userId })
-      .populate('user', 'userName email phone')
-      .populate('items.productId', 'tenThuoc imageUrl dangBaoChe dongGoi');
+    const order = await Order.findOne({ _id: orderId, user: userId });
 
     if (!order) {
       return res.status(404).json({
@@ -278,9 +334,7 @@ const reorder = async (req, res) => {
 
         await newOrder.save();
 
-        await newOrder.populate('user', 'userName email phone');
-        await newOrder.populate('items.productId', 'tenThuoc imageUrl');
-
+                
         res.status(201).json({
             success: true,
             message: 'Reorder successful',

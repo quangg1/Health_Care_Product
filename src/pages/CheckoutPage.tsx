@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { CreditCard, Truck, MapPin, Phone, User, Calendar, Clock } from 'lucide-react';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 
 interface ShippingAddress {
   fullName: string;
@@ -85,8 +87,284 @@ const CheckoutPage: React.FC = () => {
     }).format(price);
   };
 
-  const shippingCost = getTotalPrice() > 500000 ? 0 : 30000;
-  const totalAmount = getTotalPrice() + shippingCost;
+  const mapboxToken = (import.meta as any).env?.VITE_MAPBOX_TOKEN as string | undefined;
+
+  const storeCoords = { lat: 10.775658, lng: 106.700424 };
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationMode, setLocationMode] = useState<'address' | 'current'>('address');
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{ distanceKm: number; durationMin: number } | null>(null);
+  const [routeGeo, setRouteGeo] = useState<any | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const storeMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const VN_BOUNDS: [[number, number], [number, number]] = [[102.14441, 8.179], [109.464, 23.392]];
+  const isWithinVN = (lng: number, lat: number) => lng >= VN_BOUNDS[0][0] && lng <= VN_BOUNDS[1][0] && lat >= VN_BOUNDS[0][1] && lat <= VN_BOUNDS[1][1];
+  const [pickOnMap, setPickOnMap] = useState(false);
+
+  // Order preview state
+  const [orderPreview, setOrderPreview] = useState<{ subtotal: number; shippingCost: number; totalAmount: number; distanceKm: number | null; prepMin: number; deliveryMin: number; totalMin: number }>({
+    subtotal: 0,
+    shippingCost: 0,
+    totalAmount: 0,
+    distanceKm: null,
+    prepMin: 30,
+    deliveryMin: 0,
+    totalMin: 30,
+  });
+
+  // Suggestions state
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+  const [districtSuggestions, setDistrictSuggestions] = useState<string[]>([]);
+  const [wardSuggestions, setWardSuggestions] = useState<string[]>([]);
+  const cityDebounceRef = useRef<any>(null);
+  const districtDebounceRef = useRef<any>(null);
+  const wardDebounceRef = useRef<any>(null);
+
+  const formatDuration = (minutes: number) => {
+    const m = Math.max(0, Math.round(minutes));
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    if (h <= 0) return `${mm} phút`;
+    return mm > 0 ? `${h} giờ ${mm} phút` : `${h} giờ`;
+  };
+
+  const fetchRoute = async (coords: { lat: number; lng: number }) => {
+    if (!mapboxToken) return; // cannot call directions without token
+    try {
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${storeCoords.lng},${storeCoords.lat};${coords.lng},${coords.lat}?geometries=geojson&overview=full&access_token=${mapboxToken}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.routes && data.routes.length > 0) {
+        const r = data.routes[0];
+        const distanceKm = r.distance / 1000; // meters -> km
+        const durationMin = r.duration / 60; // seconds -> minutes
+        setRouteInfo({ distanceKm, durationMin });
+        setRouteGeo(r.geometry as any);
+      }
+    } catch (e) {
+      // ignore, we will fallback to haversine
+    }
+  };
+
+  useEffect(() => {
+    if (userCoords && mapboxToken) {
+      fetchRoute(userCoords);
+    }
+  }, [userCoords, mapboxToken]);
+
+  useEffect(() => {
+    if (!mapboxToken) return;
+    (mapboxgl as any).accessToken = mapboxToken;
+    if (mapRef.current || !mapContainerRef.current) return;
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      bounds: [[102.14441, 8.179], [109.464, 23.392]],
+      fitBoundsOptions: { padding: 80 },
+    });
+    map.once('load', () => map.resize());
+    mapRef.current = map;
+    return () => { map.remove(); mapRef.current = null; };
+  }, [mapboxToken, userCoords]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    // Update markers
+    if (storeMarkerRef.current) storeMarkerRef.current.remove();
+    storeMarkerRef.current = new mapboxgl.Marker({ color: '#ef4444' })
+      .setLngLat([storeCoords.lng, storeCoords.lat])
+      .addTo(map);
+    if (userMarkerRef.current) { userMarkerRef.current.remove(); userMarkerRef.current = null; }
+    if (userCoords) {
+      userMarkerRef.current = new mapboxgl.Marker({ color: '#3b82f6' })
+        .setLngLat([userCoords.lng, userCoords.lat])
+        .addTo(map);
+      const [lng, lat] = [userCoords.lng, userCoords.lat];
+      if (!isWithinVN(lng, lat)) {
+        map.fitBounds(VN_BOUNDS, { padding: 80, duration: 800 });
+      }
+    }
+
+    // Update route layer
+    const sourceId = 'route';
+    const layerId = 'route-line';
+    if (map.getLayer(layerId)) map.removeLayer(layerId);
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+    if (routeGeo && routeGeo.coordinates && routeGeo.coordinates.length > 1) {
+      map.addSource(sourceId, {
+        type: 'geojson',
+        data: { type: 'Feature', geometry: routeGeo, properties: {} }
+      });
+      map.addLayer({
+        id: layerId,
+        type: 'line',
+        source: sourceId,
+        paint: { 'line-color': '#0ea5e9', 'line-width': 4 }
+      });
+      const coords: [number, number][] = routeGeo.coordinates;
+      let minLng = coords[0][0], minLat = coords[0][1], maxLng = coords[0][0], maxLat = coords[0][1];
+      for (const [lng, lat] of coords) {
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      }
+      map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 80, duration: 800, maxZoom: 15 });
+    } else if (userCoords) {
+      const bounds = new mapboxgl.LngLatBounds([storeCoords.lng, storeCoords.lat], [storeCoords.lng, storeCoords.lat]);
+      bounds.extend([userCoords.lng, userCoords.lat]);
+      map.fitBounds(bounds, { padding: 80, duration: 800, maxZoom: 15 });
+    } else {
+      map.fitBounds([[102.14441, 8.179], [109.464, 23.392]], { padding: 80, duration: 800 });
+    }
+
+    // Handle pick-on-map mode
+    let clickHandler: any;
+    if (pickOnMap) {
+      map.getCanvas().style.cursor = 'crosshair';
+      clickHandler = (e: any) => {
+        const coords = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+        setUserCoords(coords);
+        reverseGeocode(coords);
+        setPickOnMap(false);
+      };
+      map.on('click', clickHandler);
+    } else {
+      map.getCanvas().style.cursor = '';
+    }
+
+    return () => {
+      if (clickHandler) {
+        map.off('click', clickHandler);
+      }
+    };
+  }, [userCoords, routeGeo, pickOnMap]);
+
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const haversineDistance = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+    const R = 6371; // km
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const sa = Math.sin(dLat / 2);
+    const sb = Math.sin(dLng / 2);
+    const h = sa * sa + Math.cos(lat1) * Math.cos(lat2) * sb * sb;
+    const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+    return R * c;
+  };
+  const computeShippingCost = (distanceKm: number | null, subtotal: number) => {
+    if (subtotal >= 500000) return 0;
+    if (distanceKm === null) return 30000;
+    if (distanceKm <= 5) return 15000;
+    if (distanceKm <= 10) return 25000;
+    if (distanceKm <= 20) return 40000;
+    return 60000;
+  };
+
+  const buildAddressQuery = (addr: ShippingAddress) => {
+    const parts = [addr.address, addr.ward, addr.district, addr.city, 'Việt Nam'].filter(Boolean);
+    return parts.join(', ');
+  };
+
+  const geocodeAddress = async () => {
+    if (!mapboxToken) {
+      setLocationError('Cần cấu hình VITE_MAPBOX_TOKEN để định vị theo địa chỉ.');
+      return;
+    }
+    setIsLocating(true);
+    setLocationError(null);
+    try {
+      const query = encodeURIComponent(buildAddressQuery(shippingAddress));
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${mapboxToken}&limit=1&country=VN&language=vi&proximity=${storeCoords.lng},${storeCoords.lat}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.features && data.features.length > 0) {
+        const [lng, lat] = data.features[0].center;
+        setUserCoords({ lat, lng });
+      } else {
+        setLocationError('Không tìm thấy toạ độ cho địa chỉ đã nhập.');
+      }
+    } catch (e) {
+      setLocationError('Lỗi khi xác định vị trí từ địa chỉ.');
+    } finally {
+      setIsLocating(false);
+    }
+  };
+
+  // Reverse geocode user coordinates to fill address fields
+  const reverseGeocode = async (coords: { lat: number; lng: number }) => {
+    if (!mapboxToken) return;
+    try {
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords.lng},${coords.lat}.json?access_token=${mapboxToken}&language=vi&country=VN&types=address,locality,neighborhood,place,region,district`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data || !data.features || data.features.length === 0) return;
+      let city = '';
+      let district = '';
+      let ward = '';
+      let address = '';
+
+      const first = data.features[0];
+      if (first.place_type && first.place_type.includes('address')) {
+        address = first.place_name;
+      }
+      const ctx = [...(first.context || []), first];
+      for (const c of ctx) {
+        const id: string = c.id || '';
+        const text: string = c.text || '';
+        if (id.startsWith('region')) city = city || text;
+        if (id.startsWith('place')) city = city || text;
+        if (id.startsWith('district')) district = district || text;
+        if (id.startsWith('locality') || id.startsWith('neighborhood')) ward = ward || text;
+      }
+      setShippingAddress(prev => ({ ...prev, address, city: city || prev.city, district: district || prev.district, ward: ward || prev.ward }));
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  // Suggestion fetchers
+  const fetchCitySuggestions = async (q: string) => {
+    if (!mapboxToken || !q) { setCitySuggestions([]); return; }
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${mapboxToken}&country=VN&language=vi&types=place,region&limit=5`;
+    const res = await fetch(url);
+    const data = await res.json();
+    setCitySuggestions((data.features || []).map((f: any) => f.text));
+  };
+  const fetchDistrictSuggestions = async (q: string, city?: string) => {
+    if (!mapboxToken || !q) { setDistrictSuggestions([]); return; }
+    const query = city ? `${q}, ${city}` : q;
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxToken}&country=VN&language=vi&types=district&limit=5`;
+    const res = await fetch(url);
+    const data = await res.json();
+    setDistrictSuggestions((data.features || []).map((f: any) => f.text));
+  };
+  const fetchWardSuggestions = async (q: string, district?: string, city?: string) => {
+    if (!mapboxToken || !q) { setWardSuggestions([]); return; }
+    const query = [q, district, city].filter(Boolean).join(', ');
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxToken}&country=VN&language=vi&types=locality,neighborhood&limit=5`;
+    const res = await fetch(url);
+    const data = await res.json();
+    setWardSuggestions((data.features || []).map((f: any) => f.text));
+  };
+
+  const distanceKm = routeInfo ? routeInfo.distanceKm : (userCoords ? haversineDistance(userCoords, storeCoords) : null);
+  const subtotal = getTotalPrice();
+  const shippingCost = computeShippingCost(distanceKm, subtotal);
+  const totalAmount = subtotal + shippingCost;
+  const prepMin = 30; // thời gian chuẩn bị đơn ước tính
+  const deliveryMin = routeInfo ? Math.ceil(routeInfo.durationMin) : (distanceKm ? Math.ceil(distanceKm * 2) : 0); // ~2 phút/km fallback
+  const totalMin = prepMin + deliveryMin;
+
+  useEffect(() => {
+    setOrderPreview({ subtotal, shippingCost, totalAmount, distanceKm: distanceKm ?? null, prepMin, deliveryMin, totalMin });
+  }, [subtotal, shippingCost, totalAmount, distanceKm, prepMin, deliveryMin, totalMin]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -132,6 +410,7 @@ const CheckoutPage: React.FC = () => {
           prescription: item.prescription
         })),
         shippingAddress,
+        shippingCoords: userCoords,
         paymentMethod: selectedPaymentMethod,
         notes,
         prescriptionImages: prescriptionImages.map(file => file.name) // In real app, upload to cloud storage
@@ -242,10 +521,24 @@ const CheckoutPage: React.FC = () => {
                   <input
                     type="text"
                     value={shippingAddress.city}
-                    onChange={(e) => setShippingAddress(prev => ({ ...prev, city: e.target.value }))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setShippingAddress(prev => ({ ...prev, city: val }));
+                      if (cityDebounceRef.current) clearTimeout(cityDebounceRef.current);
+                      cityDebounceRef.current = setTimeout(() => fetchCitySuggestions(val), 300);
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
+                  {citySuggestions.length > 0 && (
+                    <div className="mt-1 bg-white border rounded shadow-sm max-h-48 overflow-auto">
+                      {citySuggestions.map((s, idx) => (
+                        <div key={idx} className="px-3 py-2 hover:bg-gray-50 cursor-pointer" onClick={() => { setShippingAddress(prev => ({ ...prev, city: s })); setCitySuggestions([]); }}>
+                          {s}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 
                 <div>
@@ -255,10 +548,24 @@ const CheckoutPage: React.FC = () => {
                   <input
                     type="text"
                     value={shippingAddress.district}
-                    onChange={(e) => setShippingAddress(prev => ({ ...prev, district: e.target.value }))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setShippingAddress(prev => ({ ...prev, district: val }));
+                      if (districtDebounceRef.current) clearTimeout(districtDebounceRef.current);
+                      districtDebounceRef.current = setTimeout(() => fetchDistrictSuggestions(val, shippingAddress.city), 300);
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
+                  {districtSuggestions.length > 0 && (
+                    <div className="mt-1 bg-white border rounded shadow-sm max-h-48 overflow-auto">
+                      {districtSuggestions.map((s, idx) => (
+                        <div key={idx} className="px-3 py-2 hover:bg-gray-50 cursor-pointer" onClick={() => { setShippingAddress(prev => ({ ...prev, district: s })); setDistrictSuggestions([]); }}>
+                          {s}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 
                 <div>
@@ -268,12 +575,131 @@ const CheckoutPage: React.FC = () => {
                   <input
                     type="text"
                     value={shippingAddress.ward}
-                    onChange={(e) => setShippingAddress(prev => ({ ...prev, ward: e.target.value }))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setShippingAddress(prev => ({ ...prev, ward: val }));
+                      if (wardDebounceRef.current) clearTimeout(wardDebounceRef.current);
+                      wardDebounceRef.current = setTimeout(() => fetchWardSuggestions(val, shippingAddress.district, shippingAddress.city), 300);
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     required
                   />
+                  {wardSuggestions.length > 0 && (
+                    <div className="mt-1 bg-white border rounded shadow-sm max-h-48 overflow-auto">
+                      {wardSuggestions.map((s, idx) => (
+                        <div key={idx} className="px-3 py-2 hover:bg-gray-50 cursor-pointer" onClick={() => { setShippingAddress(prev => ({ ...prev, ward: s })); setWardSuggestions([]); }}>
+                          {s}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Location and Distance */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-semibold mb-4">Khoảng cách & Phí vận chuyển</h2>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setLocationMode('address'); setLocationError(null); }}
+                  className={`px-3 py-2 rounded border ${locationMode==='address' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-300'}`}
+                >
+                  Dùng địa chỉ nhận hàng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setLocationMode('current'); setLocationError(null); }}
+                  className={`px-3 py-2 rounded border ${locationMode==='current' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-300'}`}
+                >
+                  Dùng vị trí hiện tại
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setPickOnMap(true); setLocationMode('current'); setLocationError(null); }}
+                  className="px-3 py-2 rounded border bg-white border-gray-300"
+                >
+                  Đặt vị trí trên bản đồ
+                </button>
+              </div>
+              {pickOnMap && (
+                <div className="text-xs text-gray-600">Nhấn vào bản đồ để chọn vị trí giao hàng của bạn.</div>
+              )}
+
+              {locationMode === 'address' && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={geocodeAddress}
+                    disabled={isLocating}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {isLocating ? 'Đang xác định vị trí...' : 'Tính theo địa chỉ nhận hàng'}
+                  </button>
+                  {(!mapboxToken) && (
+                    <div className="text-xs text-gray-500">
+                      Cần cấu hình VITE_MAPBOX_TOKEN để hiển thị bản đồ và định vị địa chỉ. Bạn vẫn có thể đặt hàng; phí sẽ được ước tính.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {locationMode === 'current' && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!navigator.geolocation) {
+                        setLocationError('Trình duyệt không hỗ trợ định vị.');
+                        return;
+                      }
+                      setIsLocating(true);
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          const { latitude, longitude, accuracy } = pos.coords;
+                          const coords = { lat: latitude, lng: longitude };
+                          if (!isWithinVN(coords.lng, coords.lat) || (accuracy && accuracy > 1500)) {
+                            setLocationError('Vị trí GPS chưa chính xác hoặc ngoài Việt Nam. Hãy dùng địa chỉ nhận hàng hoặc chọn trực tiếp trên bản đồ.');
+                            setPickOnMap(true);
+                          } else {
+                            setUserCoords(coords);
+                            setLocationError(null);
+                            reverseGeocode(coords);
+                          }
+                          setIsLocating(false);
+                        },
+                        (err) => {
+                          setLocationError(`Không thể lấy vị trí: ${err.message}`);
+                          setIsLocating(false);
+                        },
+                        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+                      );
+                    }}
+                    disabled={isLocating}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {isLocating ? 'Đang xác định vị trí...' : 'Sử dụng vị trí hiện tại'}
+                  </button>
+                </div>
+              )}
+
+              {locationError && <div className="text-sm text-red-600">{locationError}</div>}
+
+              {userCoords && (
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-700">Khoảng cách tới cửa hàng: {orderPreview.distanceKm?.toFixed(2)} km</div>
+                  <div className="text-sm text-gray-700">Phí vận chuyển ước tính: {formatPrice(orderPreview.shippingCost)}</div>
+                  <div className="text-sm text-gray-700">Chuẩn bị đơn: ~{formatDuration(orderPreview.prepMin)}</div>
+                  <div className="text-sm text-gray-700">Giao đơn: ~{formatDuration(orderPreview.deliveryMin)}</div>
+                  <div className="text-sm font-medium text-gray-900">Tổng thời lượng ước tính: ~{formatDuration(orderPreview.totalMin)}</div>
+                </div>
+              )}
+              {mapboxToken ? (
+                <div ref={mapContainerRef} className="w-full h-72 rounded border" />
+              ) : null}
             </div>
           </div>
 
@@ -381,24 +807,24 @@ const CheckoutPage: React.FC = () => {
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between">
                 <span>Tạm tính:</span>
-                <span>{formatPrice(getTotalPrice())}</span>
+                <span>{formatPrice(orderPreview.subtotal)}</span>
               </div>
               
               <div className="flex justify-between">
                 <span>Phí vận chuyển:</span>
-                <span>{shippingCost === 0 ? 'Miễn phí' : formatPrice(shippingCost)}</span>
+                <span>{orderPreview.shippingCost === 0 ? 'Miễn phí' : formatPrice(orderPreview.shippingCost)}</span>
               </div>
               
-              {shippingCost > 0 && (
+              {orderPreview.shippingCost > 0 && (
                 <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                  Thêm {formatPrice(500000 - getTotalPrice())} để được miễn phí vận chuyển!
+                  Thêm {formatPrice(500000 - orderPreview.subtotal)} để được miễn phí vận chuyển!
                 </div>
               )}
               
               <div className="border-t pt-2">
                 <div className="flex justify-between text-lg font-bold">
                   <span>Tổng cộng:</span>
-                  <span className="text-blue-600">{formatPrice(totalAmount)}</span>
+                  <span className="text-blue-600">{formatPrice(orderPreview.totalAmount)}</span>
                 </div>
               </div>
             </div>
@@ -433,4 +859,4 @@ const CheckoutPage: React.FC = () => {
   );
 };
 
-export default CheckoutPage; 
+export default CheckoutPage;
