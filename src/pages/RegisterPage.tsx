@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, Check, MapPin, HelpCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, Check, MapPin, HelpCircle, Calendar, Smile } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import StyledRadio from '../components/StyledRadio';
 
 const RegisterPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -12,6 +13,9 @@ const RegisterPage: React.FC = () => {
     confirmPassword: '',
     address: '',
     answer: '',
+    nickname: '',
+    dob: '',
+    gender: 'male', // Default to 'male'
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -22,7 +26,7 @@ const RegisterPage: React.FC = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -48,8 +52,8 @@ const RegisterPage: React.FC = () => {
       return false;
     }
     if (!/^\d{10}$/.test(formData.phone)) {
-      setError('Please enter a valid 10-digit phone number');
-      return false;
+        setError('Please enter a valid 10-digit phone number');
+        return false;
     }
     if (!formData.address.trim()) {
       setError('Address is required');
@@ -85,7 +89,6 @@ const RegisterPage: React.FC = () => {
     if (!validateForm()) {
       return;
     }
-
     setIsLoading(true);
 
     try {
@@ -96,6 +99,9 @@ const RegisterPage: React.FC = () => {
         phone: formData.phone,
         address: formData.address,
         answer: formData.answer,
+        nickname: formData.nickname,
+        dob: formData.dob,
+        gender: formData.gender,
       });
 
       if (success) {
@@ -162,6 +168,25 @@ const RegisterPage: React.FC = () => {
             </div>
 
             <div>
+              <label htmlFor="nickname" className="block text-sm font-medium text-gray-700">
+                Nickname
+              </label>
+              <div className="mt-1 relative">
+                <input
+                  id="nickname"
+                  name="nickname"
+                  type="text"
+                  autoComplete="nickname"
+                  value={formData.nickname}
+                  onChange={handleInputChange}
+                  className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter your nickname"
+                />
+                <Smile className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              </div>
+            </div>
+
+            <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email address
               </label>
@@ -219,6 +244,40 @@ const RegisterPage: React.FC = () => {
                 />
                 <MapPin className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="dob" className="block text-sm font-medium text-gray-700">
+                Date of Birth
+              </label>
+              <div className="mt-1 relative">
+                <input
+                  id="dob"
+                  name="dob"
+                  type="date"
+                  required
+                  value={formData.dob}
+                  onChange={handleInputChange}
+                  className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+                <Calendar className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-2">
+                Gender
+              </label>
+              <StyledRadio
+                name="gender"
+                options={[
+                  { value: 'male', label: 'Male' },
+                  { value: 'female', label: 'Female' },
+                  { value: 'other', label: 'Other' },
+                ]}
+                selectedValue={formData.gender}
+                onChange={(value) => setFormData({ ...formData, gender: value })}
+              />
             </div>
 
             <div>
@@ -355,4 +414,4 @@ const RegisterPage: React.FC = () => {
   );
 };
 
-export default RegisterPage; 
+export default RegisterPage;

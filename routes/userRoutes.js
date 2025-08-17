@@ -1,15 +1,62 @@
 const express = require('express');
-const { getUserController,updateController,updatePasswordController,resetPasswordController
-,deleteAccountController
- } = require('../controllers/userController');
+const multer = require('multer');
+const path = require('path');
+const { body } = require('express-validator');
+const {
+  getUserController,
+  updatePasswordController,
+  resetPasswordController,
+  deleteAccountController,
+  updateUserController
+} = require('../controllers/userController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const router = express.Router();
 
-// GET USEr
-router.get('/getUser',authMiddleware, getUserController );
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  const filetypes = /jpeg|jpg|png|gif/;
+  const mimetype = filetypes.test(file.mimetype);
+  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+  if (mimetype && extname) {
+    return cb(null, true);
+  }
+  cb(new Error('Chỉ hỗ trợ các định dạng ảnh: jpeg, jpg, png, gif'));
+};
+
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter
+});
+
+// GET USER
+router.get('/getUser', authMiddleware, getUserController);
 // UPDATE USER
-router.put('/updateUser', authMiddleware,updateController); 
-router.post('/updatePassword',authMiddleware,updatePasswordController);
-router.post('/resetPassword',authMiddleware,resetPasswordController);
-router.delete('/deleteAccount/:id',authMiddleware,deleteAccountController);
-module.exports=router;
+// UPDATE PROFILE (with file upload)
+// Route to update user profile, handles file upload for profile picture
+router.put(
+  '/update-user',
+  authMiddleware, // Middleware for authentication
+  upload.single('profile'), // Middleware for handling single file upload named 'profile'
+  [
+    // Validation middleware
+    // Ensures that if a 'profile' field is provided, it is a valid URL
+    body('userName').optional().trim().escape(),
+    body('dob').optional().isISO8601().toDate().withMessage('DOB must be a valid date'),
+    body('profile').optional().isURL().withMessage('Profile must be a valid URL'),
+  ],
+  updateUserController // Controller function to handle the request
+);
+router.post('/updatePassword', authMiddleware, updatePasswordController);
+router.post('/resetPassword', authMiddleware, resetPasswordController);
+router.delete('/deleteAccount/:id', authMiddleware, deleteAccountController);
+
+module.exports = router;

@@ -36,14 +36,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
-    phone:{
-        type:String,
-        required:[true, 'Phone is required'],
-        match: function() {
-            // Only validate phone format if phone is provided
-            return this.phone ? /^\d{10}$/ : true;
-        }
-    },
+    phone: {
+        type: String,
+        required: true,
+        match: [/^0\d{9}$/, 'Số điện thoại không hợp lệ'], // ✅ đúng cú pháp
+      },
     paymentMethods: [{
         type: String,
         enum: ['cash', 'credit_card', 'momo', 'zalopay', 'shopeepay', 'banking', 'other'],
@@ -63,14 +60,6 @@ const userSchema = new mongoose.Schema({
         type:String,
         required:[true, 'Answer is required']
     },
-    birthdate: {
-        type: Date,
-        default: null
-    },
-    profilePicture: {
-        type: String,
-        default: ''
-    }
 },{timestamps:true}
 );
 module.exports= mongoose.model('User',userSchema);

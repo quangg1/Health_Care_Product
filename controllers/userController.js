@@ -1,5 +1,6 @@
 const userModel = require("../models/userModel");
 const bcryptjs = require("bcryptjs");
+const { validationResult } = require("express-validator");
 const getUserController= async (req,res)=>{
     try {
         const user=await userModel.findById({_id:req.user.id})
@@ -27,31 +28,6 @@ const getUserController= async (req,res)=>{
         })
     }
 
-};
-const updateController = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const updatedData = req.body;
-
-        const user = await userModel.findByIdAndUpdate(userId, updatedData, { new: true });
-
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-        user.password = undefined;
-        res.status(200).send({
-            success: true,
-            message: "User updated successfully",
-            user
-        });
-    } catch (error) {
-        console.log(error);
-        res.status(500).send({
-            success: false,
-            message: "Error in updating user",
-            error: error.message
-        });
-    }
 };
 // RESET PASSWORD
 const resetPasswordController = async (req, res) => {
@@ -151,24 +127,66 @@ const deleteAccountController = async (req, res) => {
     });
   }
 };
-exports.updateProfile = async (req, res) => {
+const updateUserController = async (req, res) => {
   try {
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
+      });
+    }
+
     const userId = req.user.id;
     const updatedData = req.body;
 
+    // Handle profile picture update
+    // If a file is uploaded, construct the URL for it
     if (req.file) {
-      updatedData.profilePicture = req.file.path;
+      updatedData.profile = `/uploads/${req.file.filename}`;
+    }
+    // If a profile URL is provided in the body and no file is uploaded, it's used directly
+    // The validation in the route ensures it's a valid URL format
+
+    if (updatedData.dob) {
+      updatedData.dob = new Date(updatedData.dob);
     }
 
+    // Find the user by ID and update their data
     const user = await userModel.findByIdAndUpdate(userId, updatedData, { new: true });
 
+    // If the user is not found, return a 404 error
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
 
-    res.status(200).json({ message: 'Profile updated successfully', user });
+    // Hide the password from the returned user object
+    user.password = undefined;
+
+    // Return a success response with the updated user data
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      user
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Error updating profile', error });
+    // Log any errors and return a 500 server error
+    console.error('Error updating profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating profile',
+      error: error.message
+    });
   }
 };
-module.exports = {getUserController,updateController,resetPasswordController,updatePasswordController,deleteAccountController} ;
+module.exports = {
+  getUserController,
+  resetPasswordController,
+  updatePasswordController,
+  deleteAccountController,
+  updateUserController
+};

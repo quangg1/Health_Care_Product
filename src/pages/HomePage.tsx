@@ -1,170 +1,167 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Shield, Truck, Clock, Star, Loader2 } from 'lucide-react';
-import ProductCard from '../components/ProductCard';
-import { drugService, DrugCategory } from '../services/drugService';
-import { Product } from '../context/CartContext';
+import { ArrowRight, Star, Shield, Truck, Clock, Package, Users, Award, X, Activity } from 'lucide-react';
+import BMIChart from '../components/BmiCalculator';
 
 const HomePage: React.FC = () => {
-  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<DrugCategory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isBmiModalOpen, setIsBmiModalOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Fetch featured products (first 4 drugs)
-        const productsResponse = await drugService.getDrugs({ limit: 4 });
-        const transformedProducts = productsResponse.data
-          .map(drug => drugService.transformDrugToProduct(drug));
-        setFeaturedProducts(transformedProducts);
-        
-        // Fetch categories
-        const categoriesResponse = await drugService.getDrugCategories();
-        setCategories(categoriesResponse.data.slice(0, 6)); // Show only first 6 categories
-        
-      } catch (error) {
-        console.error('Error fetching home page data:', error);
-        setError('Không thể tải dữ liệu. Vui lòng thử lại sau.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
+  const features = [
+    {
+      icon: Shield,
+      title: 'Sản phẩm chính hãng',
+      description: '100% thuốc và sản phẩm sức khỏe chính hãng, có giấy phép lưu hành'
+    },
+    {
+      icon: Truck,
+      title: 'Giao hàng nhanh chóng',
+      description: 'Giao hàng toàn quốc trong 24-48h, miễn phí vận chuyển cho đơn hàng từ 500k'
+    },
+    {
+      icon: Clock,
+      title: 'Hỗ trợ 24/7',
+      description: 'Đội ngũ tư vấn chuyên nghiệp, sẵn sàng hỗ trợ mọi lúc'
+    }
+  ];
   return (
-    <div>
+    <div className="min-h-screen">
+      {isBmiModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-4 rounded-lg shadow-xl w-11/12 md:w-3/4 lg:w-1/2 relative">
+            <button
+              onClick={() => setIsBmiModalOpen(false)}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800"
+            >
+              <X size={24} />
+            </button>
+            <h2 className="text-2xl font-bold mb-4 text-center">Chỉ số BMI</h2>
+            <BMIChart />
+          </div>
+        </div>
+      )}
+
       {/* Hero Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              Sức khỏe của bạn, Ưu tiên của chúng tôi
-            </h1>
-            <p className="text-xl md:text-2xl mb-8 text-blue-100">
-              Thuốc chất lượng và sản phẩm y tế được giao tận nhà
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                to="/products"
-                className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors inline-flex items-center justify-center"
-              >
-                Mua sắm ngay
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
-              <Link
-                to="/contact"
-                className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors"
-              >
-                Tìm cửa hàng
-              </Link>
+      <section className="bg-gradient-to-r from-blue-600 to-green-600 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <h1 className="text-4xl md:text-6xl font-bold mb-6">
+                Chăm sóc sức khỏe
+                <span className="block text-yellow-300">tại nhà</span>
+              </h1>
+              <p className="text-xl mb-8 text-blue-100">
+                Cung cấp thuốc và sản phẩm sức khỏe chất lượng cao với dịch vụ tận tâm
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link
+                  to="/products"
+                  className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors flex items-center justify-center"
+                >
+                  Mua sắm ngay
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+                <Link
+                  to="/contact"
+                  className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors flex items-center justify-center"
+                >
+                  Liên hệ tư vấn
+                </Link>
+              </div>
+            </div>
+            <div className="hidden lg:block">
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="bg-white/20 rounded-lg p-4 text-center">
+                    <Package className="h-12 w-12 mx-auto mb-2" />
+                    <h3 className="font-semibold">10,000+</h3>
+                    <p className="text-sm text-blue-100">Sản phẩm</p>
+                  </div>
+                  <div className="bg-white/20 rounded-lg p-4 text-center">
+                    <Users className="h-12 w-12 mx-auto mb-2" />
+                    <h3 className="font-semibold">50,000+</h3>
+                    <p className="text-sm text-blue-100">Khách hàng</p>
+                  </div>
+                  <div className="bg-white/20 rounded-lg p-4 text-center">
+                    <Award className="h-12 w-12 mx-auto mb-2" />
+                    <h3 className="font-semibold">5 năm+</h3>
+                    <p className="text-sm text-blue-100">Kinh nghiệm</p>
+                  </div>
+                  <div className="bg-white/20 rounded-lg p-4 text-center">
+                    <Shield className="h-12 w-12 mx-auto mb-2" />
+                    <h3 className="font-semibold">100%</h3>
+                    <p className="text-sm text-blue-100">Chính hãng</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Shield className="h-8 w-8 text-blue-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Được cấp phép & Đáng tin cậy</h3>
-              <p className="text-gray-600">
-                Tất cả sản phẩm đều được lấy từ các nhà sản xuất có giấy phép và được kiểm định chất lượng.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Truck className="h-8 w-8 text-green-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Giao hàng nhanh</h3>
-              <p className="text-gray-600">
-                Giao hàng trong ngày tại các thành phố lớn. Miễn phí vận chuyển cho đơn hàng trên 500,000 VND.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="bg-orange-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Clock className="h-8 w-8 text-orange-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Hỗ trợ 24/7</h3>
-              <p className="text-gray-600">
-                Dược sĩ của chúng tôi luôn sẵn sàng tư vấn và hỗ trợ mọi lúc.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Featured Products */}
+      {/* Features Section */}
       <section className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-center mb-12">Sản phẩm nổi bật</h2>
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-              <span className="ml-2 text-gray-600">Đang tải sản phẩm...</span>
-            </div>
-          ) : error ? (
-            <div className="text-center py-8">
-              <p className="text-red-600 text-lg mb-4">{error}</p>
-              <button 
-                onClick={() => window.location.reload()}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                Thử lại
-              </button>
-            </div>
-          ) : featuredProducts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {featuredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-500 text-lg">Không có sản phẩm nào</p>
-            </div>
-          )}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Tại sao chọn chúng tôi?</h2>
+            <p className="text-lg text-gray-600">Cam kết mang đến dịch vụ tốt nhất cho sức khỏe của bạn</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {features.map((feature, index) => (
+              <div key={index} className="bg-white rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+                  <feature.icon className="h-6 w-6 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">{feature.title}</h3>
+                <p className="text-gray-600">{feature.description}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Categories */}
-      <section className="py-16 bg-white">
+      {/* Categories Section */}
+      <section className="py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-center mb-12">Mua sắm theo danh mục</h2>
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-              <span className="ml-2 text-gray-600">Đang tải danh mục...</span>
-            </div>
-          ) : categories.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {categories.map((category) => (
-                <Link
-                  key={category.name}
-                  to={`/products/${category.name}`}
-                  className="bg-white border border-gray-200 rounded-lg p-4 text-center hover:shadow-lg transition-shadow"
-                >
-                  <div className="text-2xl mb-2">💊</div>
-                  <h3 className="font-semibold text-gray-800 mb-1">{category.name}</h3>
-                  <p className="text-sm text-gray-600">{category.count} sản phẩm</p>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-500 text-lg">Không có danh mục nào</p>
-            </div>
-          )}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Danh mục sản phẩm</h2>
+            <p className="text-lg text-gray-600">Khám phá các loại sản phẩm sức khỏe đa dạng</p>
+          </div>
+          
+          <div className="mt-8 text-center">
+            <button
+              onClick={() => setIsBmiModalOpen(true)}
+              className="bg-indigo-500 text-white px-8 py-4 rounded-lg font-semibold hover:bg-indigo-600 transition-colors flex items-center justify-center mx-auto text-lg"
+            >
+              <Activity className="mr-3 h-6 w-6" />
+              Kiểm tra chỉ số BMI
+            </button>
+          </div>
+        </div>
+      </section>
+
+      
+
+      {/* CTA Section */}
+      <section className="py-16 bg-blue-600">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl font-bold text-white mb-4">Bắt đầu chăm sóc sức khỏe ngay hôm nay</h2>
+          <p className="text-xl text-blue-100 mb-8">
+            Khám phá hàng nghìn sản phẩm sức khỏe chất lượng cao
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              to="/products"
+              className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+            >
+              Xem tất cả sản phẩm
+            </Link>
+            <Link
+              to="/contact"
+              className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors"
+            >
+              Liên hệ tư vấn
+            </Link>
+          </div>
         </div>
       </section>
     </div>

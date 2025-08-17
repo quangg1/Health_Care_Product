@@ -169,9 +169,12 @@ const CartPage: React.FC = () => {
               </div>
             </div>
 
-            <button className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors mt-6">
-              Proceed to Checkout
-            </button>
+            <Link
+              to="/checkout"
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors mt-6 inline-block text-center"
+            >
+              Tiến hành thanh toán
+            </Link>
 
             <div className="mt-6 space-y-3 text-sm text-gray-600">
               <div className="flex items-center">

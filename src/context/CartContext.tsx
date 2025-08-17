@@ -4,6 +4,7 @@ export interface Product {
   id: string | number;
   name: string;
   price: number;
+  unitPrice?: number; // Unit price for products
   originalPrice?: number;
   image: string;
   category: string;
@@ -16,13 +17,15 @@ export interface Product {
   dosage?: string;
   sideEffects?: string;
   manufacturer?: string;
-  // Additional drug-specific fields
+  // Additional product-specific fields
   soDangKy?: string;
   dangBaoChe?: string;
   dongGoi?: string;
   hanSuDung?: string;
   quocGia?: string;
   linkChiTiet?: string;
+main_category?: string;
+  sub_category?: string;
   giaThuoc?: Array<{
     ngayKeKhai: string;
     donViKeKhai: string;
@@ -32,6 +35,12 @@ export interface Product {
   }>;
 
   packaging?: string;
+  packagingOptions?: Array<{
+    description: string;
+    quantity: number;
+    totalPrice: number;
+    unitPrice: number;
+  }>;
 }
 
 export interface CartItem extends Product {

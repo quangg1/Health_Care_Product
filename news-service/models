@@ -1,0 +1,88 @@
+const mongoose = require('mongoose');
+
+const healthNewsSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true
+  },
+  slug: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  summary: {
+    type: String,
+    required: true
+  },
+  content: {
+    type: String,
+    required: true
+  },
+  author: {
+    type: String,
+    default: 'Admin'
+  },
+  category: {
+    type: String,
+    enum: ['general', 'nutrition', 'exercise', 'mental_health', 'disease_prevention', 'medication', 'pregnancy', 'children', 'elderly', 'emergency'],
+    default: 'general'
+  },
+  tags: [{
+    type: String
+  }],
+  featuredImage: {
+    type: String,
+    required: true
+  },
+  images: [{
+    type: String
+  }],
+  status: {
+    type: String,
+    enum: ['draft', 'published', 'archived'],
+    default: 'draft'
+  },
+  publishedAt: {
+    type: Date,
+    default: Date.now
+  },
+  readTime: {
+    type: Number, // in minutes
+    default: 5
+  },
+  views: {
+    type: Number,
+    default: 0
+  },
+  likes: {
+    type: Number,
+    default: 0
+  },
+  shares: {
+    type: Number,
+    default: 0
+  },
+  isFeatured: {
+    type: Boolean,
+    default: false
+  },
+  metaTitle: {
+    type: String
+  },
+  metaDescription: {
+    type: String
+  },
+  seoKeywords: [{
+    type: String
+  }]
+}, {
+  timestamps: true
+});
+
+// Add indexes for better query performance
+healthNewsSchema.index({ status: 1, publishedAt: -1 });
+healthNewsSchema.index({ category: 1 });
+healthNewsSchema.index({ slug: 1 });
+healthNewsSchema.index({ isFeatured: 1 });
+
+module.exports = mongoose.model('HealthNews', healthNewsSchema); 

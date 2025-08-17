@@ -1,244 +1,458 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, Menu, X, Phone, MapPin, Clock, User, LogOut, Settings } from 'lucide-react';
-import { useCart } from '../context/CartContext';
+import styled from 'styled-components';
+import { Search, ShoppingCart, User, Menu, X, Package, Calendar, LogOut, BarChart3, Home, Info, Phone, Bot, UserPlus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 
 const Header: React.FC = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const { getTotalItems } = useCart();
-  const { user, isAuthenticated, logout } = useAuth();
-  const navigate = useNavigate();
-  const userMenuRef = useRef<HTMLDivElement>(null);
+    const { user, logout } = useAuth();
+    const { getTotalItems } = useCart();
+    const navigate = useNavigate();
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setIsUserMenuOpen(false);
-      }
+    const handleLogout = () => {
+        logout();
+        navigate('/');
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (searchQuery.trim()) {
+            navigate(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+        }
     };
-  }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/products?search=${encodeURIComponent(searchQuery)}`);
+    const navLinks = [
+        { to: "/", icon: <Home />, title: "Trang chủ" },
+        { to: "/products", icon: <Package />, title: "Sản phẩm" },
+        { to: "/health-news", icon: <Info />, title: "Tin tức sức khỏe" }, // Add Health News link
+        { to: "/about", icon: <Info />, title: "Giới thiệu" },
+        { to: "/contact", icon: <Phone />, title: "Liên hệ" }
+    ];
+
+    const userLinks = [
+        { to: "/account", icon: <User />, title: "Tài khoản" },
+        { to: "/account?tab=orders", icon: <Package />, title: "Đơn hàng" },
+        { to: "/account?tab=appointments", icon: <Calendar />, title: "Lịch hẹn" }
+    ];
+
+    if (user?.userType === 'admin') {
+        userLinks.splice(1, 0, { to: "/admin", icon: <BarChart3 />, title: "Admin Dashboard" });
     }
-  };
+    if (user?.userType === 'pharmacist') {
+        userLinks.splice(1, 0, { to: "/pharmacist", icon: <Bot />, title: "Pharmacist Dashboard" });
+    }
 
-  const handleLogout = () => {
-    logout();
-    setIsUserMenuOpen(false);
-    navigate('/');
-  };
+    return (
+        <StyledHeader>
+            <div className="header-container">
+                <Link to="/" className="logo">
+                    <div className="logo-icon">HC</div>
+                    <span className="logo-text">HealthCare</span>
+                </Link>
 
-  return (
-    <header className="bg-white shadow-sm sticky top-0 z-50">
-      {/* Top Bar */}
-      <div className="bg-blue-600 text-white py-2">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center">
-                <Phone className="h-4 w-4 mr-1" />
-                <span>Hotline: 1900-6035</span>
-              </div>
-              <div className="hidden md:flex items-center">
-                <MapPin className="h-4 w-4 mr-1" />
-                <Link to="/contact" className="hover:underline">Find Store</Link>
-              </div>
-            </div>
-            <div className="flex items-center">
-              <Clock className="h-4 w-4 mr-1" />
-              <span>24/7 Support</span>
-            </div>
-          </div>
-        </div>
-      </div>
+                <div className="search-wrapper">
+                    <form onSubmit={handleSearch} className="search-form">
+                        <Search className="search-icon" />
+                        <input
+                            type="text"
+                            placeholder="Tìm kiếm sản phẩm..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="search-input"
+                        />
+                    </form>
+                </div>
+                
+                <div className="menu">
+                    {navLinks.map(link => (
+                        <Link to={link.to} key={link.to} className="link">
+                            <span className="link-icon">{link.icon}</span>
+                            <span className="link-title">{link.title}</span>
+                        </Link>
+                    ))}
+                </div>
 
-      {/* Main Header */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center">
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden p-2"
-            >
-              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-            <Link to="/" className="flex-shrink-0 flex items-center">
-              <div className="text-2xl font-bold text-blue-600">
-                Health<span className="text-green-500">Care</span>
-              </div>
-            </Link>
-          </div>
 
-          {/* Navigation */}
-          <nav className="hidden md:flex space-x-8">
-            <Link to="/" className="text-gray-700 hover:text-blue-600 transition-colors">
-              Home
-            </Link>
-            <Link to="/products" className="text-gray-700 hover:text-blue-600 transition-colors">
-              Products
-            </Link>
-            <Link to="/about" className="text-gray-700 hover:text-blue-600 transition-colors">
-              About Us
-            </Link>
-            <Link to="/contact" className="text-gray-700 hover:text-blue-600 transition-colors">
-              Contact
-            </Link>
-          </nav>
-
-          {/* Search Bar */}
-          <div className="hidden md:block flex-1 max-w-2xl mx-8">
-            <form onSubmit={handleSearch} className="relative">
-              <input
-                type="text"
-                placeholder="Search for medications, health products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-            </form>
-          </div>
-
-          {/* User Actions */}
-          <div className="flex items-center space-x-4">
-            {isAuthenticated ? (
-              <div className="relative" ref={userMenuRef}>
-                <button
-                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="flex items-center space-x-2 p-2 text-gray-600 hover:text-blue-600 transition-colors rounded-lg hover:bg-gray-100"
-                >
-                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                    <span className="text-white text-sm font-medium">
-                      {user?.userName?.charAt(0) || user?.email?.charAt(0) || 'U'}
-                    </span>
-                  </div>
-                  <span className="hidden md:block text-sm font-medium">
-                    {user?.userName || 'User'}
-                  </span>
-                </button>
-
-                {isUserMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                    <Link
-                      to="/account"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setIsUserMenuOpen(false)}
-                    >
-                      <User className="h-4 w-4 mr-3" />
-                      My Account
+                <div className="user-actions">
+                    <Link to="/cart" className="link cart-link">
+                        <span className="link-icon"><ShoppingCart /></span>
+                        <span className="link-title">Giỏ hàng</span>
+                        {getTotalItems() > 0 && <span className="cart-badge">{getTotalItems()}</span>}
                     </Link>
-                    <Link
-                      to="/account?tab=orders"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setIsUserMenuOpen(false)}
-                    >
-                      <Settings className="h-4 w-4 mr-3" />
-                      Orders
-                    </Link>
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      <LogOut className="h-4 w-4 mr-3" />
-                      Sign out
+
+                    {user ? (
+                        <div className="user-menu">
+                            <div className="link" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                                <span className="link-icon"><User /></span>
+                                <span className="link-title">{user.userName || user.email}</span>
+                            </div>
+                            {isMenuOpen && (
+                                <div className="dropdown-menu">
+                                    {userLinks.map(link => (
+                                        <Link to={link.to} key={link.to} className="dropdown-link" onClick={() => setIsMenuOpen(false)}>
+                                            {link.icon}<span>{link.title}</span>
+                                        </Link>
+                                    ))}
+                                    <button onClick={handleLogout} className="dropdown-link logout">
+                                        <LogOut /><span>Đăng xuất</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                    ) : (
+                        <>
+                            <Link to="/login" className="link">
+                                <span className="link-icon"><User /></span>
+                                <span className="link-title">Đăng nhập</span>
+                            </Link>
+                            <Link to="/register" className="link">
+                                <span className="link-icon"><UserPlus /></span>
+                                <span className="link-title">Đăng ký</span>
+                            </Link>
+                        </>
+                    )}
+                </div>
+
+                <div className="mobile-menu-toggle">
+                     <button onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                        {isMenuOpen ? <X/> : <Menu/>}
                     </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center space-x-2">
-                <Link
-                  to="/login"
-                  className="text-gray-600 hover:text-blue-600 transition-colors px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Sign in
-                </Link>
-                <Link
-                  to="/register"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
-                >
-                  Sign up
-                </Link>
-              </div>
+                </div>
+            </div>
+
+            {isMenuOpen && (
+                <div className="mobile-menu">
+                     <form onSubmit={handleSearch} className="search-form">
+                        <Search className="search-icon" />
+                        <input
+                            type="text"
+                            placeholder="Tìm kiếm sản phẩm..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="search-input"
+                        />
+                    </form>
+                     {navLinks.map(link => (
+                        <Link to={link.to} key={link.to} className="mobile-link" onClick={() => setIsMenuOpen(false)}>
+                           {link.icon}<span>{link.title}</span>
+                        </Link>
+                    ))}
+                    <div className="divider" />
+                    {user ? userLinks.map(link => (
+                        <Link to={link.to} key={link.to} className="mobile-link" onClick={() => setIsMenuOpen(false)}>
+                           {link.icon}<span>{link.title}</span>
+                        </Link>
+                    )) :
+                    (<>
+                        <Link to="/login" className="mobile-link" onClick={() => setIsMenuOpen(false)}>
+                            <User /><span>Đăng nhập</span>
+                        </Link>
+                        <Link to="/register" className="mobile-link" onClick={() => setIsMenuOpen(false)}>
+                            <UserPlus /><span>Đăng ký</span>
+                        </Link>
+                    </>)}
+                     {user && <button onClick={handleLogout} className="mobile-link logout">
+                                <LogOut /><span>Đăng xuất</span>
+                             </button>}
+                </div>
             )}
-            
-            <Link
-              to="/cart"
-              className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors"
-            >
-              <ShoppingCart className="h-6 w-6" />
-              {getTotalItems() > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  {getTotalItems()}
-                </span>
-              )}
-            </Link>
-          </div>
-        </div>
 
-        {/* Mobile Search */}
-        <div className="md:hidden px-4 pb-4">
-          <form onSubmit={handleSearch} className="relative">
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-          </form>
-        </div>
-
-        {/* Mobile Menu */}
-        {isMenuOpen && (
-          <div className="md:hidden border-t border-gray-200">
-            <nav className="py-4 space-y-2">
-              <Link
-                to="/"
-                className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Home
-              </Link>
-              <Link
-                to="/products"
-                className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Products
-              </Link>
-              <Link
-                to="/about"
-                className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                About Us
-              </Link>
-              <Link
-                to="/contact"
-                className="block px-4 py-2 text-gray-700 hover:bg-gray-50"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Contact
-              </Link>
-            </nav>
-          </div>
-        )}
-      </div>
-    </header>
-  );
+        </StyledHeader>
+    );
 };
+
+const StyledHeader = styled.header`
+  background-color: #fff;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+
+  .header-container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 4.5rem;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .logo-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    background: linear-gradient(to right, #3b82f6, #16a34a);
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 1rem;
+  }
+
+  .logo-text {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-left: 0.5rem;
+    background: linear-gradient(to right, #3b82f6, #16a34a);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .search-wrapper {
+      flex: 1;
+      margin: 0 2rem;
+      max-width: 600px;
+  }
+
+  .search-form {
+      position: relative;
+  }
+
+  .search-icon {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #9ca3af;
+      width: 1rem;
+      height: 1rem;
+  }
+
+  .search-input {
+      width: 100%;
+      padding: 0.5rem 2.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.5rem;
+      transition: all 0.2s;
+      &:focus {
+          ring: 2px solid #3b82f6;
+          border-color: transparent;
+          outline: none;
+      }
+  }
+
+  .menu {
+    padding: 0.5rem;
+    background-color: #fff;
+    position: relative;
+    display: none;
+    justify-content: center;
+    border-radius: 15px;
+    box-shadow: 0 10px 25px 0 rgba(0,0,0, 0.075);
+
+    @media (min-width: 1024px) {
+        display: flex;
+    }
+  }
+
+  .link {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 60px;
+    height: 45px;
+    border-radius: 8px;
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+    transform-origin: center left;
+    transition: width 0.2s ease-in;
+    text-decoration: none;
+    color: #374151;
+    &:before {
+      position: absolute;
+      z-index: -1;
+      content: "";
+      display: block;
+      border-radius: 8px;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      transform: translateX(100%);
+      transition: transform 0.2s ease-in;
+      transform-origin: center right;
+      background-color: #f3f4f6;
+    }
+
+    &:hover,
+    &:focus {
+      outline: 0;
+      width: 130px;
+
+      &:before,
+      .link-title {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+  }
+
+  .link-icon {
+    width: 24px;
+    height: 24px;
+    display: block;
+    flex-shrink: 0;
+    left: 18px;
+    position: absolute;
+    svg {
+      width: 24px;
+      height: 24px;
+    }
+  }
+
+  .link-title {
+    transform: translateX(100%);
+    transition: transform 0.2s ease-in;
+    transform-origin: center right;
+    display: block;
+    text-align: center;
+    text-indent: 20px;
+    width: 100%;
+    font-size: 0.875rem;
+  }
+  
+  .user-actions {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      @media (min-width: 1024px) {
+        display: flex;
+    }
+  }
+
+  .cart-link {
+      position: relative;
+  }
+
+  .cart-badge {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      background-color: #ef4444;
+      color: white;
+      font-size: 0.75rem;
+      width: 1.25rem;
+      height: 1.25rem;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+  }
+
+  .user-menu {
+      position: relative;
+  }
+  
+  .dropdown-menu {
+      position: absolute;
+      right: 0;
+      margin-top: 0.5rem;
+      width: 200px;
+      background-color: white;
+      border-radius: 0.5rem;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+      border: 1px solid #e5e7eb;
+      padding: 0.5rem 0;
+      display: flex;
+      flex-direction: column;
+  }
+
+  .dropdown-link {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      text-decoration: none;
+      color: #374151;
+      transition: background-color 0.2s;
+      
+      svg {
+          width: 1rem;
+          height: 1rem;
+          margin-right: 0.75rem;
+      }
+
+      &:hover {
+          background-color: #f3f4f6;
+      }
+  }
+   .logout {
+       color: #ef4444;
+       &:hover {
+           background-color: #fee2e2;
+       }
+   }
+   
+   .mobile-menu-toggle {
+       display: block;
+       @media (min-width: 1024px) {
+           display: none;
+       }
+       button {
+           background: none;
+           border: none;
+           cursor: pointer;
+           padding: 0.5rem;
+           svg {
+               width: 1.5rem;
+               height: 1.5rem;
+           }
+       }
+   }
+    
+   .mobile-menu {
+       padding: 1rem 0;
+       border-top: 1px solid #e5e7eb;
+       display: flex;
+       flex-direction: column;
+       gap: 0.5rem;
+
+       @media (min-width: 1024px) {
+           display: none;
+       }
+        
+       .search-form {
+           margin-bottom: 1rem;
+       }
+
+       .mobile-link {
+           display: flex;
+           align-items: center;
+           padding: 0.75rem 1rem;
+           text-decoration: none;
+           color: #374151;
+            border-radius: 0.5rem;
+           transition: background-color 0.2s;
+            &:hover {
+                background-color: #f3f4f6;
+            }
+            svg {
+                width: 1rem;
+                height: 1rem;
+                margin-right: 0.75rem;
+            }
+       }
+
+       .divider {
+           height: 1px;
+           background: #e5e7eb;
+           margin: 0.5rem 0;
+       }
+   }
+
+`;
 
 export default Header;
